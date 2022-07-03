@@ -1,1 +1,1 @@
-# neutron_ts_tools
+# Tools for processing and post-procssing neutron total scattering data.
