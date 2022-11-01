@@ -1,0 +1,133 @@
+#!/bin/bash
+
+if [ "$#" -lt 1 ]; then
+    echo ""
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No control file provided. Hence we have to stop..."
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Info > Usage: ./mts_pp control_file"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    exit
+fi
+
+input=$1
+
+if [ ! -f "$input" ]; then
+    echo ""
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error> Control file '$input' not found. Hence we have to stop..."
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+
+if [ ! -d "caching" ] ; then
+    mkdir caching
+fi
+
+echo ""
+echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+while IFS= read -r line
+do
+    echo $line | grep -iq "INPUT_FILE_DIR" && a=1 || a=0
+    if [ $a = 1 ] ; then
+        input_file_dir=$(echo $line | awk -F'::' '{print $2}' | xargs)
+        echo "Input file/dir: $input_file_dir"
+    fi
+    echo $line | grep -iq "OUTPUT_DIR" && a=1 || a=0
+    if [ $a = 1 ] ; then
+        output_dir=$(echo $line | awk -F'::' '{print $2}' | xargs)
+        echo "Output dir: $output_dir"
+        if [ ! -d "$output_dir" ] ; then
+            mkdir $output_dir
+        fi
+    fi
+    echo $line | grep -iq "WORKSPACE_NAME" && a=1 || a=0
+    if [ $a = 1 ] ; then
+        wksp_name=$(echo $line | awk -F'::' '{print $2}' | xargs)
+        echo "Workspace name: $wksp_name"
+    fi
+    echo $line | grep -iq "MERGE_INPUT_FILE" && a=1 || a=0
+    if [ $a = 1 ] ; then
+        merge_input=$(echo $line | awk -F'::' '{print $2}' | xargs)
+        echo "Merge input file: $merge_input"
+    fi
+    echo $line | grep -iq "PYSTOG_INPUT_FILE" && a=1 || a=0
+    if [ $a = 1 ] ; then
+        pystog_input=$(echo $line | awk -F'::' '{print $2}' | xargs)
+        echo "pystog input file: $pystog_input"
+    fi
+done < $input
+echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+echo ""
+
+if [ -z $input_file_dir ]; then
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No input file or directory provided in the control file!"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+if [ -z $output_dir ]; then
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No output directory provided in the control file!"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+if [ -z $wksp_name ]; then
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No workspace name provided in the control file!"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+if [ -z $merge_input ]; then
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No merge inpout file provided in the control file!"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+if [ -z $pystog_input ]; then
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Error > No pystog inpout file provided in the control file!"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo ""
+    exit
+fi
+
+. /opt/anaconda/etc/profile.d/conda.sh
+conda activate mantidtotalscattering
+if [ -d $input_file_dir ] ; then
+    echo "[Info] Processing directory..."
+    for var in `ls $input_file_dir`;
+    do
+        echo $var | grep -q "nxs" && a=1 || a=0
+        if [ $a = 1 ] ; then
+            python /SNS/NOM/shared/mts_utilities/mts_pp.py $input_file_dir $var\
+                $output_dir $wksp_name ./controls/$merge_input\
+                ./controls/$pystog_input
+        fi
+    done
+else
+    echo "[Info] Processing file..."
+    python /SNS/NOM/shared/mts_utilities/mts_pp.py $input_file_dir $output_dir\
+        $wksp_name ./controls/$merge_input ./controls/$pystog_input
+fi
+conda deactivate
+
+if [ -f "ft.dat" ] ; then
+    mv ft.dat caching
+fi
+
+real_out=$(realpath  "$output_dir")
+
+echo ""
+echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+echo "Info> Batch MTS post processing job done!"
+echo "Info> All files written to $real_out"
+echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+echo ""
