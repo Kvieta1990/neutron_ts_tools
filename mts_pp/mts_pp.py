@@ -112,19 +112,19 @@ def load_pystog_config(input_file: str, out_dir: str, nexus_file: str):
 
     stem_name = os.path.split(nexus_file)[1].split(".")[0]
 
-    merged_file = os.path.join(out_dir, stem_name + "_merged.sq")
+    merged_file = os.path.join(".", stem_name + "_merged.sq")
     list_tmp = pystog_config["Files"]
     list_tmp[0]["Filename"] = merged_file
     pystog_config["Files"] = list_tmp
 
-    pystog_config["Outputs"]["StemName"] = os.path.join(out_dir, stem_name + "_merged")
+    pystog_config["Outputs"]["StemName"] = os.path.join(".", stem_name + "_merged")
 
     out_file = os.path.join(out_dir, os.path.split(input_file)[1])
     out_f = open(out_file, "w")
     json.dump(pystog_config, out_f, indent=2)
     out_f.close()
 
-    return out_file
+    return os.path.split(input_file)[1]
 
 def bkg_finder(all_data: list,
                all_range: list,
@@ -428,7 +428,7 @@ if __name__ == "__main__":
                     nexus_file=nexus_file,
                     merge_config=merge_config)
         print("[Info] pystog in progress...")
+        os.chdir(out_dir)
         subprocess.run(["pystog_cli", "--json", pystog_file])
+        os.chdir("..")
         print("[Info] pystog job done!")
-    else:
-        sys.exit("[Error] NeXus file extraction failed.")
