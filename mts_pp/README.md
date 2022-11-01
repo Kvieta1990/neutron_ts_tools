@@ -37,5 +37,5 @@ Json file for merging all the banks. The `PYSTOG_INPUT_FILE` entry specifies the
 input Json file for pystog.
 
 
-***N. B. *** Both the merge and pystog config Json files should be placed under
+*N. B.* Both the merge and pystog config Json files should be placed under
 the `controls` directory.
