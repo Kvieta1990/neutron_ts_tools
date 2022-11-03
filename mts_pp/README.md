@@ -6,8 +6,11 @@ but it has be located in the `controls` directory that sits parallel to the main
 bash script, i.e.,
 
 arbitrary dir
+
     |- mts_pp
+
     |- controls
+    
         |- control_input.dat
 
 where the name `control_input.dat` can be arbitrary. The routine can then be
