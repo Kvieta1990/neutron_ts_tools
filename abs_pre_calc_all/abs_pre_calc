@@ -1,0 +1,126 @@
+#!/bin/bash
+
+#=======================Central Config File=======================
+config="/SNS/NOM/shared/autoreduce/configs/mts_abs_pre_calc.json"
+script_path="/SNS/NOM/shared/mts_utilities/abs_pre_calc"
+#=======================Central Config File=======================
+
+#===========================Grab Config===========================
+client_id=$(jq '.ClientID' $config | cut -d '"' -f2)
+secret=$(jq '.Secret' $config | cut -d '"' -f2)
+token_url=$(jq '.TokenURL' $config | cut -d '"' -f2)
+ipts_url=$(jq '.IPTSURL' $config | cut -d '"' -f2)
+cache_dir=$(jq '.CacheDir' $config | cut -d '"' -f2)
+#===========================Grab Config===========================
+
+if [ "$#" -lt 1 ]; then
+    echo "usage: abs_pre_calc [-h]"
+    echo "                    ipts"
+    echo "abs_pre_calc: error: no IPTS provided"
+    exit
+fi
+
+if [ "$#" = 1 ] && [ $1 = "-h" ]; then
+    echo "usage: abs_pre_calc [-h]"
+    echo "                    ipts"
+    echo "====================================================================="
+    echo "The utility is a wrapper script for the pre-calculation of"
+    echo "the absorption coefficients as the function of wavelength."
+    echo "This involves the following steps,"
+    echo ""
+    echo "1. Pulling sample information from the ITEMS database."
+    echo "2. Manually filling in the missing info or correcting the"
+    echo "   incorrect entries."
+    echo "3. Perform the absorption coefficients calculation."
+    echo "4. Save the calculation results to NeXus file for later use."
+    echo "5. Group detectors according to the similarity in the"
+    echo "   calculated absorption spectra, if specified to."
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "\|/ ATTENTION \|/"
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "#1. For the calculation of absorption coefficients, we need to"
+    echo "    know the instrument geometry. At this point, we need to load"
+    echo "    some data which contains the instrument geometry. For such a"
+    echo "    purpose, the data to be loaded can be arbitrary, as long as"
+    echo "    it contains the right instrument geometry."
+    echo "#2. If not major upgrade to the instrument is performed, the"
+    echo "    instrument geometry should stay constant and therefore the"
+    echo "    same representative data could be shared across."
+    echo "#3. Similarly, the grouping of detectors won't change if no major"
+    echo "    detector upgrade is performed. Therefore, in most cases, we"
+    echo "    we don't need to repeat the group step."
+    echo "#4. We have a central configuration file that contains the"
+    echo "    parameters for controlling the behavior of the whole process,"
+    echo "    including the arbitrary data to load, whether or not to"
+    echo "    re-generate the group file, and among a few other parameters"
+    echo "    for the absorption coefficients calculation. This config file"
+    echo "    is located at,"
+    echo "    /SNS/NOM/shared/autoreduce/configs/mts_abs_pre_calc.json"
+    echo "#5. Rarely will we need to change those params in the config file."
+    echo "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    echo "Correspondence: Yuanpeng Zhang"
+    echo "Email: zhangy3@ornl.gov"
+    echo "====================================================================="
+    exit
+fi
+
+ipts=$1
+
+#
+# Grab the sample information from ITEMS database if the sample information
+# CSV file is not already existing.
+#
+if [ ! -f "${cache_dir}/IPTS-${ipts}/abs_calc_sample_info.csv" ]; then
+    echo "[Info] To grab sample information from the ITEMS database..."
+    token_fetch=$(curl -i -k --user $client_id:$secret --data \
+        "grant_type=client_credentials" $token_url)
+    IFS='"'
+    token_str=$(echo $token_fetch | tail -n 1)
+    read -a tstr_tmp <<< "$token_str"
+    IFS=' '
+    read -a tstr_tmp_1 <<< "${tstr_tmp[0]}"
+    
+    token=${tstr_tmp_1[3]}
+    
+    if [ ! -d "$cache_dir/IPTS-${ipts}" ]; then
+        mkdir $cache_dir/IPTS-$ipts
+    fi
+    
+    if [ ! -f "$cache_dir/IPTS-${ipts}/${ipts}_sample_info.json" ]; then
+        curl -H "Authorization: Bearer $token" $ipts_url/$ipts > \
+            $cache_dir/IPTS-${ipts}/${ipts}_sample_info.json
+    fi
+    
+    #
+    # Parsing the sample information json file
+    #
+    python3 $script_path/sample_info_parser.py \
+        $cache_dir/IPTS-${ipts}/${ipts}_sample_info.json $ipts
+    echo "[Info] Sample information successfully fetched and parsed."
+else
+    echo "[Info] Sample information available locally at,"
+    echo "[Info] ${cache_dir}/IPTS-${ipts}/abs_calc_sample_info.csv"
+fi
+
+#
+# Manually edit the final json file for absorption calculation
+#
+echo "[Info] Manually edit the automatically opened sample info sheet,"
+echo "[Info] until all the necessary information is properly filled."
+a=0
+rm -rf ${cache_dir}/IPTS-${ipts}/.~lock.abs_calc_sample_info.csv#
+while [ $a = 0 ]
+do
+    libreoffice --calc ${cache_dir}/IPTS-${ipts}/abs_calc_sample_info.csv \
+        --infilter=”CSV:44,34,0,1,4/2/1”
+    python3 $script_path/sample_info_validator.py \
+        $cache_dir/IPTS-${ipts}/abs_calc_sample_info.csv && a=1 || a=0
+done
+echo "[Info] Sample information validated."
+
+#
+# Absorption calculation
+#
+echo "[Info] To process the absorption calculation..."
+. /opt/anaconda/etc/profile.d/conda.sh && conda activate mantidtotalscattering-dev
+python $script_path/abs_calculator.py $cache_dir $ipts $config

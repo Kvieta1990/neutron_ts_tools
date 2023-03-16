@@ -97,9 +97,21 @@ def bkg_finder(all_data: list,
             x_min_min = [x_min[item] for item in min_min[0]]
 
             ws_real_bkg = CreateWorkspace(x_min_min, y_min_min)
-            Fit("name=UserFunction, Formula=a-b*exp(-c*x*x), a=1, b=0.1, c=0.1",
-                ws_real_bkg,
-                Output='ws_real_bkg_fitted')
+
+            if bank == 4:
+                print("Debugging -> ", x_min_min)
+                print("Debugging -> ", y_min_min)
+
+            c_factor = [1., 10., 0.1, 0.05, 0.01, 0.001]
+            for c_factor_try in c_factor:
+                c_init = c_factor_try * 0.1
+                Fit(f"name=UserFunction, Formula=a-b*exp(-c*x*x), a=1, b=0.1, c={c_init}",
+                    ws_real_bkg,
+                    Output='ws_real_bkg_fitted')
+                c_err = mtd['ws_real_bkg_fitted_Parameters'].row(2)["Error"]
+                print("Debugging ->", bank, c_err)
+                if c_err != 0.:
+                    break
 
             a_init = mtd['ws_real_bkg_fitted_Parameters'].row(0)["Value"]
             b_init = mtd['ws_real_bkg_fitted_Parameters'].row(1)["Value"]
@@ -125,15 +137,15 @@ def bkg_finder(all_data: list,
     file_out.close()
 
     # Remove all workspaces
-    DeleteWorkspace(ws_tmp)
-    DeleteWorkspace("ws_tmp_param_out")
-    DeleteWorkspace("ws_tmp_fit")
-    DeleteWorkspace("ws_real_bkg")
-    DeleteWorkspace("ws_bkg_final")
-    DeleteWorkspace("ws_tmp_out")
-    DeleteWorkspace("ws_real_bkg_fitted_Workspace")
-    DeleteWorkspace("ws_real_bkg_fitted_Parameters")
-    DeleteWorkspace("ws_real_bkg_fitted_NormalisedCovarianceMatrix")
+    # DeleteWorkspace(ws_tmp)
+    # DeleteWorkspace("ws_tmp_param_out")
+    # DeleteWorkspace("ws_tmp_fit")
+    # DeleteWorkspace("ws_real_bkg")
+    # DeleteWorkspace("ws_bkg_final")
+    # DeleteWorkspace("ws_tmp_out")
+    # DeleteWorkspace("ws_real_bkg_fitted_Workspace")
+    # DeleteWorkspace("ws_real_bkg_fitted_Parameters")
+    # DeleteWorkspace("ws_real_bkg_fitted_NormalisedCovarianceMatrix")
 
     return
 
