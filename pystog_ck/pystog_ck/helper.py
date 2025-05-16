@@ -628,9 +628,6 @@ def run_stog_ck(
             title="Partition of the real space data"
         )
         fig, ax = plot_handle.plot()
-        if interactive:
-            plt.show()
-        plt.close()
 
         max_r = max(max(rlist) for rlist in gr_chunks_all)
         ax.set_xlim(0., 15.)
@@ -688,9 +685,6 @@ def run_stog_ck(
     )
     fig, _ = plot_handle.plot()
     fig.savefig(f"{output}_cbyc_ff_{qf_name}.png", dpi=300)
-    if interactive:
-        plt.show()
-    plt.close()
 
     if "K" in r_out_form:
         r_left_m = 0.12
