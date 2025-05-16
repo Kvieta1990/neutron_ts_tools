@@ -1,0 +1,107 @@
+#!/SNS/users/y8z/miniconda/envs/pystog/bin/python3.12
+# -*- coding: utf-8 -*-
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# The codes were adapted from the original codes provided by Eric O’Quinn
+# who used to work at ORNL and now at the University of Tennessee. The code
+# design was originated from Joerg C Neuefeind at ORNL.
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# With the codes, one can realize the data denoising and scaling through the
+# chunk-by-chunk back-and-forth Fourier transform.
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# Author: Yuanpeng Zhang, Eric O’Quinn* and Joerg C. Neuefeind†
+# Email: zhangy3@ornl.gov
+# Corresponding Authors: *ericoquinn@utk.edu, †neuefeindjc@ornl.gov
+# Date: 05/16/2025 01:07:08 EST
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+import helper as helper
+import json
+import sys
+
+
+def main(data):
+    """Main wrapper function.
+    """
+    if not helper.validate_input(data):
+        print("\n[Error] Input data is not valid. See the printout above.\n")
+        return
+
+    all_files = data['Files']
+    if isinstance(data['NumberDensity'], (int, float)):
+        all_num_density = [data['NumberDensity']] * len(all_files)
+    else:
+        all_num_density = data['NumberDensity']
+    if "FaberZiman" in data:
+        if isinstance(data['FaberZiman'], (int, float)):
+            all_fz = [data['FaberZiman']] * len(all_files)
+        else:
+            all_fz = data['FaberZiman']
+    else:
+        all_fz = [None] * len(all_files)
+    output_stem = data['OutputStem']
+    if len(output_stem) == 1:
+        all_output_stem = [output_stem[0]] * len(all_files)
+    else:
+        all_output_stem = output_stem
+
+    hlines = data.get('HeaderLines', 2)
+    input_form = data.get('InputForm', 'SofQ')
+    qmin = data.get('QMin', 0.4)
+    qbin = data.get('QBin', 0.01)
+    qchunks = data.get('QChunks')
+    rbin = data.get('RBin', 0.01)
+    rmax_out = data.get('RMax', 50.)
+    rchunks = data.get('RChunks')
+    interactive = data.get('Interactive', False)
+    rs_min = data.get('RMinScaling', None)
+    rs_max = data.get('RMaxScaling', None)
+    r_cut = data.get('RCutoff', None)
+    q_out_form = data.get('QSpaceOutputForm', 'S(Q)')
+    r_out_form = data.get('RSpaceOutputForm', 'g(r)')
+    diagnostic = data.get('Diagnostic', False)
+    debug_mode = data.get('DebugMode', False)
+
+    for i, file in enumerate(all_files):
+        num_density = all_num_density[i]
+        output = all_output_stem[i]
+        print(
+            f"\n[Info] Processing the data file '{file}' ..."
+        )
+        if debug_mode:
+            helper.run_stog_ck(
+                file, num_density, output, hlines,
+                input_form, qmin, qbin, qchunks,
+                rbin, rchunks, interactive, diagnostic,
+                rs_min=rs_min, rs_max=rs_max, r_cut=r_cut,
+                fzcoeff=all_fz[i], rmax_out=rmax_out,
+                q_out_form=q_out_form, r_out_form=r_out_form
+            )
+        else:
+            try:
+                helper.run_stog_ck(
+                    file, num_density, output, hlines,
+                    input_form, qmin, qbin, qchunks,
+                    rbin, rchunks, interactive, diagnostic,
+                    rs_min=rs_min, rs_max=rs_max, r_cut=r_cut,
+                    fzcoeff=all_fz[i], rmax_out=rmax_out,
+                    q_out_form=q_out_form, r_out_form=r_out_form
+                )
+            except Exception as e:
+                print(f"[Error] Failed to process {file}")
+                print(f"[Error] {e}")
+                continue
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("[Info] Usage: pystog_ck <input_file>")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    with open(input_file, 'r') as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"[Error] Failed in reading JSON file: {e}")
+            sys.exit(1)
+
+    main(data)

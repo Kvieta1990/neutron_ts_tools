@@ -1,0 +1,30 @@
+{
+    "Files": [
+        "NOM_XW50Zr_at_200C_sgb.dat"
+    ],
+    "NumberDensity": [
+        0.0705
+    ],
+    "FaberZiman": [
+        0.15
+    ],
+    "OutputStem": [
+        "NOM_XW50Zr_at_200C_sgb"
+    ],
+    "InputForm": "S(Q)",
+    "HeaderLines": 2,
+    "QMin": 0.3,
+    "QBin": 0.01,
+    "RMax": 50.0,
+    "RBin": 0.01,
+    "RMinScaling": 1.1,
+    "RMaxScaling": 1.5,
+    "RCutoff": 1.64,
+    "QChunks": [31.4, 18.37, 10.5, 6.9],
+    "RChunks": [2.58, 6.0, 50.0, 314.0],
+    "QSpaceOutputForm": "FK(Q)",
+    "RSpaceOutputForm": "GK(r)",
+    "Interactive": false,
+    "Diagnostic": true,
+    "DebugMode": true
+}
