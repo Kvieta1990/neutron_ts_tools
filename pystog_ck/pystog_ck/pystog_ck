@@ -1,17 +1,23 @@
 #!/SNS/users/y8z/miniconda/envs/pystog/bin/python3.12
 # -*- coding: utf-8 -*-
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#
 # The codes were adapted from the original codes provided by Eric O’Quinn
 # who used to work at ORNL and now at the University of Tennessee. The code
 # design was originated from Joerg C Neuefeind at ORNL.
+#
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#
 # With the codes, one can realize the data denoising and scaling through the
 # chunk-by-chunk back-and-forth Fourier transform.
+#
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#
 # Author: Yuanpeng Zhang, Eric O’Quinn* and Joerg C. Neuefeind†
 # Email: zhangy3@ornl.gov
 # Corresponding Authors: *ericoquinn@utk.edu, †neuefeindjc@ornl.gov
 # Date: 05/16/2025 01:07:08 EST
+#
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 import helper as helper
 import json
@@ -51,12 +57,13 @@ def main(data):
     rbin = data.get('RBin', 0.01)
     rmax_out = data.get('RMax', 50.)
     rchunks = data.get('RChunks')
-    interactive = data.get('Interactive', False)
     rs_min = data.get('RMinScaling', None)
     rs_max = data.get('RMaxScaling', None)
     r_cut = data.get('RCutoff', None)
     q_out_form = data.get('QSpaceOutputForm', 'S(Q)')
     r_out_form = data.get('RSpaceOutputForm', 'g(r)')
+    low_r_region = data.get('LowRInspectRegion', None)
+    interactive = data.get('Interactive', False)
     diagnostic = data.get('Diagnostic', False)
     debug_mode = data.get('DebugMode', False)
 
@@ -73,7 +80,8 @@ def main(data):
                 rbin, rchunks, interactive, diagnostic,
                 rs_min=rs_min, rs_max=rs_max, r_cut=r_cut,
                 fzcoeff=all_fz[i], rmax_out=rmax_out,
-                q_out_form=q_out_form, r_out_form=r_out_form
+                q_out_form=q_out_form, r_out_form=r_out_form,
+                low_r_region=low_r_region
             )
         else:
             try:
@@ -83,7 +91,8 @@ def main(data):
                     rbin, rchunks, interactive, diagnostic,
                     rs_min=rs_min, rs_max=rs_max, r_cut=r_cut,
                     fzcoeff=all_fz[i], rmax_out=rmax_out,
-                    q_out_form=q_out_form, r_out_form=r_out_form
+                    q_out_form=q_out_form, r_out_form=r_out_form,
+                    low_r_region=low_r_region
                 )
             except Exception as e:
                 print(f"[Error] Failed to process {file}")

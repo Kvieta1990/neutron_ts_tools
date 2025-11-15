@@ -1,3 +1,4 @@
+from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -181,6 +182,24 @@ def validate_input(data):
         )
         return False
 
+    if "LowRInspectRegion" in data:
+        var_tmp = data["LowRInspectRegion"]
+        err_msg = "[Error] Entry for 'LowRInspectRegion' should be "
+        err_msg += "like this, [[0, 5], [-2, 1]]"
+        if isinstance(var_tmp, list) and len(var_tmp) == 2:
+            for sub_list in var_tmp:
+                if isinstance(sub_list, list) and len(sub_list) == 2:
+                    for item in sub_list:
+                        if not isinstance(item, (int, float)):
+                            print(err_msg)
+                            return False
+                else:
+                    print(err_msg)
+                    return False
+        else:
+            print(err_msg)
+            return False
+
     return True
 
 
@@ -225,7 +244,8 @@ def run_stog_ck(
         input_form, qmin, qbin, qchunks,
         rbin, rchunks, interactive, diagnostic,
         rs_min=None, rs_max=None, r_cut=None, fzcoeff=None,
-        rmax_out=50., q_out_form='S(Q)', r_out_form='g(r)'):
+        rmax_out=50., q_out_form='S(Q)', r_out_form='g(r)',
+        low_r_region=None):
     """Run the chunk-by-chunk Fourier transform processing.
 
     Parameters
@@ -268,6 +288,8 @@ def run_stog_ck(
         The output form for the q-space data. Default is 'S(Q)'.
     r_out_form : str, optional
         The output form for the r-space data. Default is 'g(r)'.
+    low_r_region : list, optional
+        Specification of the low r region for inspection plot.
 
     Returns
     -------
@@ -308,7 +330,15 @@ def run_stog_ck(
     # This is for the offset of S(Q) by the average of the high Q region then
     # plus 1 to make sure the high Q region is oscillating around 1.
     sq2 = sq2 - np.mean(sq2[len(sq2) - int(5. / qbin): len(sq2)]) + 1.
-    r, gr, _ = transformer.S_to_g(q2, sq2, r_raw, rho=num_density)
+    r, gr, _ = transformer.S_to_g(
+        q2, sq2, r_raw, rho=num_density,
+        OmittedXrangeCorrection=True
+    )
+    ff_out_init = ff.g_using_S(
+        r, gr, q2, sq2, 2.0, rho=num_density,
+        OmittedXrangeCorrection=True
+    )
+    gr = ff_out_init[5]
     gr -= 1.
 
     # Check and decide the low r region for scaling, interactively.
@@ -326,8 +356,18 @@ def run_stog_ck(
         )
         _, ax = plot_handle.plot()
 
-        ax.set_xlim(0, 5)
-        ax.set_ylim(-3, 3)
+        if low_r_region:
+            xl = low_r_region[0][0]
+            xu = low_r_region[0][1]
+            yl = low_r_region[1][0]
+            yu = low_r_region[1][1]
+        else:
+            xl = 0
+            xu = 5
+            yl = -2
+            yu = 1
+        ax.set_xlim(xl, xu)
+        ax.set_ylim(yl, yu)
 
         plt.show(block=False)
 
@@ -344,12 +384,16 @@ def run_stog_ck(
     # of the low-r region within the specified boundary can be used as scale
     # factor.
     scale = -np.mean(gr[int(rs_min / rbin): int(rs_max / rbin)])
+    print("Scale = ", scale)
     sq /= scale
 
     # Initial Fourier transform of the scaled data.
     q2, sq2, _ = transformer.apply_cropping(q, sq, qmin, qchunks[0])
     sq2 = sq2 - np.mean(sq2[len(sq2) - int(5. / qbin): len(sq2)]) + 1.
-    r, gr, _ = transformer.S_to_g(q2, sq2, r_raw, rho=num_density)
+    r, gr, _ = transformer.S_to_g(
+        q2, sq2, r_raw, rho=num_density,
+        OmittedXrangeCorrection=True
+    )
 
     # To interactively decide the cutoff for the Fourier filter. Alternative
     # positions are those intersections of the g(r) with the x-axis.
@@ -424,10 +468,16 @@ def run_stog_ck(
             q, sq, qmin, q_chunk
         )
         sq2 = sq2 - np.mean(sq2[len(sq2) - int(5. / qbin): len(sq2)]) + 1.
-        r, gr, _ = transformer.S_to_g(q2, sq2, r, rho=num_density)
+        r, gr, _ = transformer.S_to_g(
+            q2, sq2, r, rho=num_density,
+            OmittedXrangeCorrection=True
+        )
 
         # The Fourier filtered Q-space data will be used for the next chunk.
-        ff_out = ff.g_using_S(r, gr, q2, sq2, r_cut, rho=num_density)
+        ff_out = ff.g_using_S(
+            r, gr, q2, sq2, r_cut, rho=num_density,
+            OmittedXrangeCorrection=True
+        )
         q = ff_out[2]
         sq = ff_out[3]
         r = ff_out[4]
@@ -451,7 +501,8 @@ def run_stog_ck(
         # used in previous step for the Fourier transform into real space, the
         # data obtained here would be the same as the one obtained through a
         # direct Fourier transform over the same overall Q-range.
-        q_crop = np.linspace(qbin, qmax_init, int(qmax_init / qbin))
+        # q_crop = np.linspace(qbin, qmax_init, int(qmax_init / qbin))
+        q_crop = np.copy(q_init)
         q_crop, sq_crop, _ = transformer.g_to_S(
             r_crop, gr_crop, q_crop, rho=num_density
         )
@@ -474,8 +525,18 @@ def run_stog_ck(
     # summed S(Q) data.
     r_final = np.linspace(0., rmax, rmax_idx)
     r_final, gr_final, _ = transformer.S_to_g(
-        q_crop, sq_sum, r_final, rho=num_density
+        q_crop, sq_sum, r_final, rho=num_density,
+        OmittedXrangeCorrection=True
     )
+
+    ff_out = ff.g_using_S(
+        r_final, gr_final, q_crop, sq_sum, r_cut, rho=num_density,
+        OmittedXrangeCorrection=True
+    )
+    q_crop = ff_out[2]
+    sq_sum = ff_out[3]
+    r_final = ff_out[4]
+    gr_final = ff_out[5]
 
     # Convert S(Q) into specified output form.
     if q_out_form == "S(Q)":
@@ -563,7 +624,14 @@ def run_stog_ck(
             f.write(f"{q_crop[i]:10.3f}{sq_out[i]:15.6f}\n")
 
     with open(out_gr, "w") as f:
-        f.write(f"{len(r_out_crop)}\n")
+        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f.write(f"#       {len(r_out_crop)}\n")
+        f.write(f"#     file:    {out_gr}\n")
+        f.write(f"#     created: {timestamp_str}\n")
+        f.write(
+            f"#     Comment: neutron, Qmax={qchunks[0]}, "
+            "Qdamp=0.017659, Qbroad=0.0191822\n"
+        )
         f.write(
             f"# QChunks: {qchunks}, "
             f"RChunks: {rchunks_out}\n"
@@ -670,6 +738,8 @@ def run_stog_ck(
 
     if "K" in q_out_form:
         q_left_m = 0.12
+    else:
+        q_left_m = 0.1
 
     plot_handle.update_data(
         [q_init, q_crop],
@@ -688,6 +758,8 @@ def run_stog_ck(
 
     if "K" in r_out_form:
         r_left_m = 0.12
+    else:
+        r_left_m = 0.1
 
     plot_handle.update_data(
         [r_init_crop, r_out_crop],
